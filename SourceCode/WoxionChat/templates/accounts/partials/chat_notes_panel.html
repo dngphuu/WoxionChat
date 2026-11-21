@@ -1,0 +1,120 @@
+<!-- Bảng điều khiển bên phải: Studio Ghi chú, Ghim & ACE Playbook -->
+<div class="studio-panel" id="studioPanel">
+    <div class="studio-header">
+        <span><i class="fas fa-magic me-2" style="color:#10a37f;"></i>Studio</span>
+        <button class="studio-collapse-btn" onclick="toggleStudioPanel()" title="Thu gọn / Mở rộng">
+            <i class="fas fa-chevron-right"></i>
+        </button>
+    </div>
+    <div class="studio-body">
+        <div class="studio-tabs">
+            <button class="studio-tab active" data-tab="notes" onclick="switchStudioTab('notes')">
+                <i class="fas fa-sticky-note"></i> Ghi chú
+            </button>
+            <button class="studio-tab" data-tab="saved" onclick="switchStudioTab('saved')">
+                <i class="fas fa-thumbtack"></i> Ghim
+            </button>
+            <button class="studio-tab" data-tab="ace" onclick="switchStudioTab('ace')">
+                <i class="fas fa-brain"></i> Nhật Ký Tự Học (ACE)
+            </button>
+        </div>
+        
+        <!-- Tab 1: Ghi chú cá nhân -->
+        <div class="studio-tab-content active" id="notesTab" style="position: relative;">
+            <button class="studio-add-btn" id="studioAddBtn" title="Thêm ghi chú mới" onclick="showAddNoteForm()">
+                <i class="fas fa-plus"></i>
+            </button>
+            
+            <div class="studio-notes-list" id="studioNotesList">
+                <!-- Rendered by chat_notes.js -->
+            </div>
+
+            <div class="studio-empty-state" id="studioNotesEmpty" style="display: none;">
+                <i class="fas fa-sticky-note"></i>
+                <p>Chưa có ghi chú nào</p>
+                <small>Nhấn dấu <b>+</b> để thêm ghi chú mới</small>
+            </div>
+            
+            <!-- Modal Thêm/Sửa Ghi chú -->
+            <div class="modal" id="studioNoteModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <span id="studioNoteModalTitle">Thêm ghi chú</span>
+                        <button class="modal-close" onclick="closeNoteModal()">&times;</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="noteTitle">Tiêu đề</label>
+                        <input type="text" id="noteTitle" maxlength="100" placeholder="Tiêu đề ghi chú (tùy chọn)">
+                    </div>
+                    <div class="form-group">
+                        <label for="noteContent">Nội dung</label>
+                        <textarea id="noteContent" rows="5" maxlength="2000" placeholder="Nhập nội dung ghi chú..."></textarea>
+                    </div>
+                    <div class="studio-note-footer">
+                        <button class="btn-pin-note" id="pinNoteBtn" onclick="togglePinState()">
+                            <i class="fas fa-thumbtack"></i> Ghim
+                        </button>
+                        <button class="studio-save-btn" id="saveNoteBtn" onclick="saveNote()">Lưu</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: Tin nhắn đã ghim -->
+        <div class="studio-tab-content" id="savedTab" style="display: none;">
+            <div class="studio-saved-messages" id="studioSavedMessages">
+                <!-- Rendered by chat_notes.js -->
+            </div>
+            <div class="studio-saved-actions">
+                <button class="studio-clear-btn" onclick="clearAllSavedMessages()" disabled>
+                    <i class="fas fa-trash"></i> Xóa tất cả
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab 3: Cẩm nang ACE Playbook -->
+        <div class="studio-tab-content" id="aceTab" style="display: none; padding: 15px; height: calc(100% - 50px); overflow-y: auto; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                <h4 style="margin: 0; font-size: 14px; color: #10a37f; font-weight: 600;">
+                    <i class="fas fa-brain"></i> Cẩm Nang Quy Tắc ACE
+                </h4>
+                <div style="display: flex; gap: 6px;">
+                    <button class="btn-refresh" onclick="loadAcePlaybook(false)" style="padding: 2px 8px; font-size: 11px; background: transparent; border: 1px solid #10a37f; color: #10a37f; border-radius: 4px; cursor: pointer; transition: all 0.2s;">
+                        <i class="fas fa-sync-alt"></i> Làm mới
+                    </button>
+                    <button class="btn-reset-default" onclick="resetAcePlaybookToDefault()" style="padding: 2px 8px; font-size: 11px; background: transparent; border: 1px solid #ff9800; color: #ff9800; border-radius: 4px; cursor: pointer; transition: all 0.2s;" title="Đặt lại cẩm nang mặc định">
+                        <i class="fas fa-magic"></i> Đặt lại
+                    </button>
+                </div>
+            </div>
+            
+            <p style="font-size: 11px; color: #64748b; line-height: 1.4; margin-bottom: 12px; margin-top: 0;">
+                ACE (Agentic Context Engineering) tự động phân tích phản hồi Thumbs Up / Down để hoàn thiện cẩm nang quy tắc hành vi cho bot.
+            </p>
+
+            <!-- Toggle View Mode: Cấu trúc vs Thô -->
+            <div style="display: flex; gap: 8px; margin-bottom: 12px; justify-content: center; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+                <button id="btnAceParsed" class="active" onclick="toggleAceView('parsed')" style="flex: 1; border: none; background: #fff; padding: 5px 10px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.06); color: #10a37f;">Quy tắc cấu trúc</button>
+                <button id="btnAceRaw" onclick="toggleAceView('raw')" style="flex: 1; border: none; background: transparent; padding: 5px 10px; font-size: 11px; font-weight: 500; border-radius: 6px; cursor: pointer; color: #64748b;">Mã nguồn thô</button>
+            </div>
+
+            <!-- Parsed Bullet List -->
+            <div id="aceParsedView">
+                <div id="aceBulletsList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 12px;">
+                        <i class="fas fa-spinner fa-spin" style="margin-bottom: 8px; font-size: 18px; color: #10a37f; display: block;"></i>
+                        Đang tải cẩm nang...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw Textarea View -->
+            <div id="aceRawView" style="display: none;">
+                <textarea id="aceRawTextarea" style="width: 100%; height: calc(100vh - 360px); min-height: 250px; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; resize: vertical; box-sizing: border-box; line-height: 1.4; outline: none;"></textarea>
+                <button onclick="saveAcePlaybookText()" style="width: 100%; margin-top: 8px; background: #10a37f; color: white; border: none; border-radius: 6px; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s;">
+                    <i class="fas fa-save me-1"></i> Lưu Cẩm Nang
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
