@@ -192,7 +192,11 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
 
-# Mistral AI API Configuration for OCR
+# Gemini API Configuration for OCR
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY', '')
+GEMINI_OCR_MODEL = os.getenv('GEMINI_OCR_MODEL', 'gemini-3.5-flash')
+
+# Mistral AI API Configuration (Deprecated / Fallback)
 MISTRAL_API_KEY = os.getenv('MISTRAL_API_KEY', '')
 
 SOCIAL_AUTH_PIPELINE = (

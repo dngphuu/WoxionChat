@@ -193,14 +193,106 @@ function copyResponseText(button, messageId) {
 }
 
 /**
- * Parse full markdown content + KaTeX
+ * Helper: escape HTML characters
  */
-function renderRichContent(content) {
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+/**
+ * Get appropriate FontAwesome icon based on file extension
+ */
+function getFileIcon(filename) {
+    if (!filename) return 'far fa-file-alt';
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.pdf')) return 'far fa-file-pdf';
+    if (lower.endsWith('.doc') || lower.endsWith('.docx')) return 'far fa-file-word';
+    if (lower.endsWith('.xls') || lower.endsWith('.xlsx') || lower.endsWith('.csv')) return 'far fa-file-excel';
+    if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return 'far fa-file-powerpoint';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.gif') || lower.endsWith('.webp')) return 'far fa-file-image';
+    if (lower.endsWith('.zip') || lower.endsWith('.rar') || lower.endsWith('.7z')) return 'far fa-file-archive';
+    if (lower.endsWith('.txt') || lower.endsWith('.md')) return 'far fa-file-alt';
+    return 'far fa-file-alt';
+}
+
+/**
+ * Copy citation snippet to clipboard
+ */
+function copyCitationSnippet(button, text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        const origHtml = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check" style="color:#10a37f;"></i> <span>Đã chép!</span>';
+        showSuccessNotification('Đã sao chép đoạn trích vào bộ nhớ tạm');
+        setTimeout(() => {
+            button.innerHTML = origHtml;
+        }, 2000);
+    }).catch(err => {
+        console.error('Copy snippet failed:', err);
+    });
+}
+
+/**
+ * Focus and highlight citation card when user clicks inline citation badge [1], [2]
+ */
+function focusCitation(messageId, citationIndex) {
+    const accordion = document.querySelector(`#citations-${messageId} .citations-accordion`);
+    if (accordion && !accordion.classList.contains('open')) {
+        accordion.classList.add('open');
+    }
+    const cardId = `citation-card-${messageId}-${citationIndex}`;
+    const card = document.getElementById(cardId);
+    if (card) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        card.classList.remove('highlight');
+        void card.offsetWidth; // Force reflow
+        card.classList.add('highlight');
+        setTimeout(() => {
+            card.classList.remove('highlight');
+        }, 2000);
+    }
+}
+
+/**
+ * Convert [1], [2], [Nguồn 1] into clickable chips linking to citation cards
+ */
+function convertInlineCitations(html, messageId) {
+    if (!html || !messageId) return html;
+    // Don't replace inside pre, code, or a tags
+    const parts = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>|<a[\s\S]*?<\/a>)/gi);
+    for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
+            // Match [1], [2] etc.
+            parts[i] = parts[i].replace(/\[(\d+)\]/g, (match, num) => {
+                return `<button type="button" class="inline-citation-btn" onclick="focusCitation('${messageId}', ${num})" title="Xem trích dẫn [${num}]">${num}</button>`;
+            });
+            // Match [Nguồn 1], [Nguồn 2] etc.
+            parts[i] = parts[i].replace(/\[Nguồn\s*(\d+)\]/gi, (match, num) => {
+                return `<button type="button" class="inline-citation-btn" onclick="focusCitation('${messageId}', ${num})" title="Xem trích dẫn [${num}]">[${num}]</button>`;
+            });
+        }
+    }
+    return parts.join('');
+}
+
+/**
+ * Parse full markdown content + KaTeX + inline citations
+ */
+function renderRichContent(content, messageId = null) {
     if (!content) return '';
     try {
         let processed = renderKaTeX(content);
         if (typeof marked !== 'undefined') {
             processed = marked.parse(processed);
+        }
+        if (messageId) {
+            processed = convertInlineCitations(processed, messageId);
         }
         return processed;
     } catch (e) {
@@ -223,46 +315,90 @@ function highlightCodeBlocks(container) {
 // ==================== Citations Accordion ==================== //
 
 /**
- * Build rich citations accordion HTML from sources / context
+ * Build rich citations accordion HTML from structured citations / sources / context
  */
-function buildCitationsHtml(sources, context) {
-    if ((!sources || sources.length === 0) && (!context || context === '{}')) {
+function buildCitationsHtml(sources, context, citations = null, messageId = '') {
+    const hasCitations = citations && Array.isArray(citations) && citations.length > 0;
+    const hasSources = sources && Array.isArray(sources) && sources.length > 0;
+    const hasContext = context && typeof context === 'string' && context.trim().length > 10 && context !== '{}';
+
+    if (!hasCitations && !hasSources && !hasContext) {
         return '';
     }
 
     let cardsHtml = '';
+    let totalCount = 0;
 
-    if (sources && sources.length > 0) {
-        sources.forEach((src, idx) => {
+    if (hasCitations) {
+        totalCount = citations.length;
+        citations.forEach(item => {
+            const idx = item.index;
+            const src = item.source_file || 'Tài liệu tham khảo';
+            const scorePct = item.score ? Math.round(item.score * 100) : null;
+            const scoreBadge = scorePct ? `<span class="citation-score-badge" title="Độ tương đồng ngữ nghĩa: ${item.score}">${scorePct}% Khớp</span>` : '';
+            const typeLabel = item.type === 'user' ? 'Cá nhân' : 'Quản trị';
+            const typeClass = item.type === 'user' ? 'user' : 'admin';
+            const fileIcon = getFileIcon(src);
+            const snippetText = item.snippet || '';
+            const snippetHtml = escapeHtml(snippetText);
+            const cardId = `citation-card-${messageId}-${idx}`;
+
             cardsHtml += `
-            <div class="citation-card">
+            <div class="citation-card" id="${cardId}">
                 <div class="citation-card-header">
-                    <span class="doc-name"><i class="fas fa-file-alt"></i> ${src}</span>
+                    <span class="doc-name" title="${escapeHtml(src)}">
+                        <i class="${fileIcon}"></i>
+                        <span>[${idx}] ${escapeHtml(src)}</span>
+                    </span>
+                    <div class="citation-badges-group">
+                        <span class="citation-type-badge ${typeClass}">${typeLabel}</span>
+                        ${scoreBadge}
+                    </div>
+                </div>
+                ${snippetHtml ? `<div class="citation-snippet">"${snippetHtml}"</div>` : ''}
+                <div class="citation-footer-actions">
+                    <button type="button" class="citation-copy-btn" onclick="copyCitationSnippet(this, ${JSON.stringify(snippetText)})" title="Sao chép đoạn trích này">
+                        <i class="far fa-copy"></i> Sao chép đoạn trích
+                    </button>
+                </div>
+            </div>`;
+        });
+    } else if (hasSources) {
+        totalCount = sources.length;
+        sources.forEach((src, idx) => {
+            const fileIcon = getFileIcon(src);
+            const cardId = `citation-card-${messageId}-${idx + 1}`;
+            cardsHtml += `
+            <div class="citation-card" id="${cardId}">
+                <div class="citation-card-header">
+                    <span class="doc-name" title="${escapeHtml(src)}">
+                        <i class="${fileIcon}"></i>
+                        <span>[${idx + 1}] ${escapeHtml(src)}</span>
+                    </span>
                     <span class="citation-score-badge">Nguồn #${idx + 1}</span>
                 </div>
             </div>`;
         });
     }
 
-    if (context && typeof context === 'string' && context.length > 5 && context !== '{}') {
+    if (hasContext && !hasCitations) {
+        totalCount += 1;
         cardsHtml += `
         <div class="citation-card">
             <div class="citation-card-header">
                 <span class="doc-name"><i class="fas fa-database"></i> Trích đoạn Context RAG</span>
             </div>
-            <div class="citation-snippet">${context.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+            <div class="citation-snippet">${escapeHtml(context)}</div>
         </div>`;
     }
 
-    const count = (sources ? sources.length : 0) + (context && context !== '{}' ? 1 : 0);
-
     return `
     <div class="citations-accordion">
-        <div class="citations-header" onclick="this.parentElement.classList.toggle('open')">
-            <span><i class="fas fa-book-reader me-2" style="color:#10a37f;"></i> Nguồn tham khảo (${count})</span>
+        <div class="citations-header" onclick="this.parentElement.classList.toggle('open')" title="Nhấp để xem/thu gọn trích dẫn">
+            <span><i class="fas fa-book-reader me-2" style="color:#10a37f;"></i> Nguồn trích dẫn (${totalCount})</span>
             <i class="fas fa-chevron-down chevron"></i>
         </div>
-        <div class="citations-body" style="display: flex;">
+        <div class="citations-body">
             ${cardsHtml}
         </div>
     </div>`;
@@ -309,15 +445,16 @@ function addBotMessageWithTypewriter(content, options = {}) {
         timeString = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         instant = false,
         sources = null,
-        context = null
+        context = null,
+        citations = null
     } = options;
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message bot';
     messageDiv.id = messageId;
 
-    const renderedHtml = renderRichContent(content);
-    const citationsHtml = buildCitationsHtml(sources, context);
+    const renderedHtml = renderRichContent(content, messageId);
+    const citationsHtml = buildCitationsHtml(sources, context, citations, messageId);
 
     const buttonsHtml = `
         <button class="copy-response-btn" onclick="copyResponseText(this, '${messageId}')" title="Sao chép nội dung">

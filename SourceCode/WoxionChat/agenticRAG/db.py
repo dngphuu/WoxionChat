@@ -187,7 +187,7 @@ def get_embedding_batch(texts, model='BAAI/bge-m3'):
     
     return results
 
-def _regex_fallback_search(collection, query_text, uploader_username=None, limit=10):
+def _regex_fallback_search(collection, query_text, uploader_username=None, selected_document=None, limit=10):
     import re
     safe_log_info(f"Running regex fallback search for: '{query_text}'")
     query_clean = query_text.strip() if query_text else ""
@@ -197,6 +197,8 @@ def _regex_fallback_search(collection, query_text, uploader_username=None, limit
     query_filter = {}
     if uploader_username:
         query_filter["uploader_username"] = uploader_username
+    if selected_document:
+        query_filter["source_file"] = selected_document
 
     # Attempt 1: Exact phrase match (case-insensitive)
     try:
@@ -209,6 +211,7 @@ def _regex_fallback_search(collection, query_text, uploader_username=None, limit
                 '_id': doc['_id'],
                 'content': doc.get('content', ''),
                 'uploader_username': doc.get('uploader_username', ''),
+                'source_file': doc.get('source_file', ''),
                 'score': 0.5
             } for doc in results]
     except Exception as e:
@@ -228,6 +231,7 @@ def _regex_fallback_search(collection, query_text, uploader_username=None, limit
                     '_id': doc['_id'],
                     'content': doc.get('content', ''),
                     'uploader_username': doc.get('uploader_username', ''),
+                    'source_file': doc.get('source_file', ''),
                     'score': 0.3
                 } for doc in results]
     except Exception as e:
@@ -242,6 +246,7 @@ def _regex_fallback_search(collection, query_text, uploader_username=None, limit
                 '_id': doc['_id'],
                 'content': doc.get('content', ''),
                 'uploader_username': doc.get('uploader_username', ''),
+                'source_file': doc.get('source_file', ''),
                 'score': 0.1
             } for doc in results]
     except Exception as e:
@@ -253,6 +258,7 @@ def find_similar_documents_hybrid_search(
     query_vector: list[float],
     search_query: str,
     uploader_username: str,
+    selected_document: str = None,
     limit: int = 10,
     candidates: int = 30,
     vector_search_index: str = "vector_search_on_users",
@@ -269,6 +275,12 @@ def find_similar_documents_hybrid_search(
     def perform_vector_search():
         """Perform vector search in parallel."""
         try:
+            vector_filter = {
+                "uploader_username": {"$eq": uploader_username}
+            }
+            if selected_document:
+                vector_filter["source_file"] = {"$eq": selected_document}
+
             vector_pipeline = [
                 {
                     "$vectorSearch": {
@@ -277,9 +289,7 @@ def find_similar_documents_hybrid_search(
                         "queryVector": query_vector,
                         "limit": limit,
                         "numCandidates": candidates,
-                        "filter": {
-                            "uploader_username": {"$eq": uploader_username}
-                        }
+                        "filter": vector_filter
                     }
                 },
                 {
@@ -287,6 +297,7 @@ def find_similar_documents_hybrid_search(
                         '_id': 1,
                         'content': 1,
                         'uploader_username': 1,
+                        'source_file': 1,
                         "vector_score": {"$meta": "vectorSearchScore"}
                     }
                 }
@@ -308,25 +319,27 @@ def find_similar_documents_hybrid_search(
             return []
         
         try:
+            must_clauses = [
+                {
+                    "text": {
+                        "query": search_query,
+                        "path": "content"
+                    }
+                },
+                {
+                    "text": {
+                        "query": uploader_username,
+                        "path": "uploader_username"
+                    }
+                }
+            ]
+            
             text_pipeline = [
                 {
                     "$search": {
                         "index": atlas_search_index,
                         "compound": {
-                            "must": [
-                                {
-                                    "text": {
-                                        "query": search_query,
-                                        "path": "content"
-                                    }
-                                },
-                                {
-                                    "text": {
-                                        "query": uploader_username,
-                                        "path": "uploader_username"
-                                    }
-                                }
-                            ]
+                            "must": must_clauses
                         }
                     }
                 },
@@ -335,12 +348,15 @@ def find_similar_documents_hybrid_search(
                         '_id': 1,
                         'content': 1,
                         'uploader_username': 1,
+                        'source_file': 1,
                         "text_score": {"$meta": "searchScore"}
                     }
                 }
             ]
             
             text_results = list(collection.aggregate(text_pipeline))
+            if selected_document:
+                text_results = [d for d in text_results if d.get('source_file') == selected_document]
             safe_log_info(f"Text search returned {len(text_results)} results")
             for doc in text_results:
                 doc['search_type'] = 'text'
@@ -381,6 +397,7 @@ def find_similar_documents_hybrid_search(
                     '_id': doc['_id'],
                     'content': doc.get('content', ''),
                     'uploader_username': doc.get('uploader_username', ''),
+                    'source_file': doc.get('source_file', ''),
                     'score': doc.get('combined_score', 0)
                 }
                 merged_results.append(final_doc)
@@ -399,7 +416,7 @@ def find_similar_documents_hybrid_search(
         
         if not final_results:
             safe_log_info("Atlas Search returned 0 results. Triggering regex fallback search...")
-            return _regex_fallback_search(collection, search_query, uploader_username, limit)
+            return _regex_fallback_search(collection, search_query, uploader_username, selected_document, limit)
             
         safe_log_info(f"Hybrid search final results: {len(final_results)} documents")
         return final_results
@@ -407,7 +424,7 @@ def find_similar_documents_hybrid_search(
     except Exception as e:
         safe_log_error(f"Error in hybrid search: {e}", exc_info=True)
         safe_log_info("Triggering regex fallback search due to exception...")
-        return _regex_fallback_search(collection, search_query, uploader_username, limit)
+        return _regex_fallback_search(collection, search_query, uploader_username, selected_document, limit)
 
 def find_similar_documents_vector_search(
     query_vector: list[float],
@@ -436,6 +453,7 @@ def find_similar_documents_vector_search(
                 '_id': 1,
                 'content': 1,
                 'uploader_username': 1,
+                'source_file': 1,
                 "score": {"$meta": "vectorSearchScore"}
             }
         }
@@ -451,6 +469,7 @@ def find_similar_documents_vector_search(
                 '_id': doc['_id'],
                 'content': doc.get('content', ''),
                 'uploader_username': doc.get('uploader_username', ''),
+                'source_file': doc.get('source_file', ''),
                 'score': 0.5
             } for doc in fallback_results]
             
@@ -474,6 +493,7 @@ def find_similar_documents_vector_search(
                     '_id': doc['_id'],
                     'content': doc.get('content', ''),
                     'uploader_username': doc.get('uploader_username', ''),
+                    'source_file': doc.get('source_file', ''),
                     'score': 0.5  # Default score for fallback
                 })
             

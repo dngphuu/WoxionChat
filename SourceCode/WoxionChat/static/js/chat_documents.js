@@ -71,6 +71,28 @@ function renderUserDatabase(documents) {
     listEl.innerHTML = html;
 }
 
+function updateActiveDocBanner() {
+    const banner = document.getElementById('activeDocBanner');
+    const nameEl = document.getElementById('activeDocName');
+    if (!banner || !nameEl) return;
+
+    if (selectedUserData) {
+        const name = selectedUserData.title || selectedUserData.file_name || selectedUserData.source_file || 'Tài liệu đã chọn';
+        nameEl.textContent = name;
+        banner.style.display = 'flex';
+    } else {
+        banner.style.display = 'none';
+        nameEl.textContent = '';
+    }
+}
+
+function clearSelectedDocument() {
+    selectedUserData = null;
+    updateActiveDocBanner();
+    renderUserDatabase(userDatabaseCache);
+    showInfoNotification('Bỏ chọn tài liệu', 'Đã chuyển sang chế độ tìm kiếm toàn bộ tài liệu.');
+}
+
 function toggleDocumentSelection(docId) {
     const doc = userDatabaseCache.find(d => d.id === docId);
     if (!doc) return;
@@ -82,5 +104,6 @@ function toggleDocumentSelection(docId) {
         selectedUserData = doc;
         showSuccessNotification('Đã chọn tài liệu', doc.title || doc.file_name);
     }
+    updateActiveDocBanner();
     renderUserDatabase(userDatabaseCache);
 }

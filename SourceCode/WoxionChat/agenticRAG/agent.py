@@ -1,5 +1,6 @@
 import logging
 import operator
+import os
 from typing import TypedDict, Annotated, Sequence, Optional, Union
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, ToolMessage
@@ -47,6 +48,10 @@ class AgentState(TypedDict):
     needs_retrieval: Optional[bool]
     query_type: Optional[str]
     confidence: Optional[float]
+
+    # Citations & Document focusing
+    citations: Optional[list]
+    selected_document: Optional[str]
 
 
 def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
@@ -116,15 +121,16 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
     def retrieve_context_parallel_node(state: AgentState):
         """Retrieve both user and admin context in parallel for better performance."""
         logger.info("--- Running Node: retrieve_context_parallel_node ---")
-        logger.info(f"Using user_id '{state['user_id']}' for parallel context retrieval")
+        logger.info(f"Using user_id '{state['user_id']}', selected_document '{state.get('selected_document')}' for parallel context retrieval")
         
         start_time = time.time()
         
-        # Use the new parallel tool for document retrieval
+        # Use the parallel tool for document retrieval
         try:
             parallel_results = find_documents_parallel.invoke({
                 "search_query": state['input'], 
-                "uploader_username": state['user_id']
+                "uploader_username": state['user_id'],
+                "selected_document": state.get('selected_document')
             })
             
             user_context = parallel_results.get("user_documents", [])
@@ -132,12 +138,16 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
             
             logger.info(f"Parallel retrieval found {len(user_context)} user docs and {len(admin_context)} admin docs")
             
-            def build_context_string(
+            citations = []
+            citation_counter = 1
+
+            def process_and_build_context(
                 documents: list[dict],
+                doc_type: str,
                 score_threshold: float = 0.15,
-                top_k: int = 10
+                top_k: int = 6
             ) -> str:
-                # Sort documents by their original similarity/relevance score
+                nonlocal citation_counter
                 sorted_docs = sorted(documents, key=lambda x: x.get('score', 0), reverse=True)
                 filtered_docs = [
                     doc for doc in sorted_docs
@@ -149,17 +159,34 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
                     return ""
                     
                 context_parts = []
-                for i, doc in enumerate(top_docs):
-                    content = doc.get('content', 'N/A')
-                    score = doc.get('score', 'N/A')
-                    context_part = f"--- Tài liệu {i+1} (Điểm: {score:.2f}) ---\n{content}"
+                for doc in top_docs:
+                    content = doc.get('content', '').strip()
+                    score = doc.get('score', 0)
+                    raw_src = doc.get('source_file') or ('Tài liệu người dùng' if doc_type == 'user' else 'Tài liệu quản trị')
+                    # Clean filename if it's a full path
+                    source_name = os.path.basename(raw_src) if raw_src else raw_src
+
+                    # Create a clean snippet (up to 300 chars)
+                    clean_text = " ".join(content.split())
+                    snippet = clean_text[:280] + ("..." if len(clean_text) > 280 else "")
+
+                    citations.append({
+                        "index": citation_counter,
+                        "source_file": source_name,
+                        "snippet": snippet,
+                        "score": round(float(score), 3),
+                        "type": doc_type
+                    })
+
+                    context_part = f"--- [Nguồn {citation_counter}: {source_name}] (Điểm: {score:.2f}) ---\n{content}"
                     context_parts.append(context_part)
+                    citation_counter += 1
 
                 return "\n\n".join(context_parts)
 
-            # Build context strings directly from retrieved documents (no reranking)
-            user_context_string = build_context_string(user_context)
-            admin_context_string = build_context_string(admin_context)
+            # Build context strings directly from retrieved documents
+            user_context_string = process_and_build_context(user_context, doc_type="user", score_threshold=0.15, top_k=6)
+            admin_context_string = process_and_build_context(admin_context, doc_type="admin", score_threshold=0.15, top_k=4)
             
             # Simple memory context building
             memory_context = ""
@@ -200,18 +227,20 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
             combined_context += f"\n\n--- SYSTEM REMINDER ---\nUser is already identified with ID: {state['user_id']}. Do not ask for name or identification."
             
             total_time = time.time() - start_time
-            logger.info(f"Parallel context retrieval completed in {total_time:.3f}s")
+            logger.info(f"Parallel context retrieval completed in {total_time:.3f}s with {len(citations)} citations extracted")
             
             return {
                 "context": combined_context,
-                "user_context": user_context_string if user_context_string else "No user documents found"
+                "user_context": user_context_string if user_context_string else "No user documents found",
+                "citations": citations
             }
             
         except Exception as e:
             logger.error(f"Error in parallel context retrieval: {e}", exc_info=True)
             return {
                 "context": f"Error retrieving context for user {state['user_id']}",
-                "user_context": "Error retrieving user context"
+                "user_context": "Error retrieving user context",
+                "citations": []
             }
 
     def retrieve_user_context_node(state: AgentState):
@@ -219,14 +248,22 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
         logger.info("--- Running Node: retrieve_user_context_node ---")
         logger.info(f"Using user_id '{state['user_id']}' as uploader_username for user document search")
         
-        # Get basic context - fix function call with proper parameters
-        user_context = find_document_from_user.invoke({"search_query": state['input'], "uploader_username": state['user_id']})
+        # Get basic context
+        user_context = find_document_from_user.invoke({
+            "search_query": state['input'], 
+            "uploader_username": state['user_id'],
+            "selected_document": state.get('selected_document')
+        })
         
+        citations = list(state.get('citations') or [])
+        citation_counter = len(citations) + 1
+
         def build_context_string(
             documents: list[dict],
             score_threshold: float = 0.15,
             top_k: int = 10
         ) -> str:
+            nonlocal citation_counter
             sorted_docs = sorted(documents, key=lambda x: x.get('score', 0), reverse=True)
             filtered_docs = [
                 doc for doc in sorted_docs
@@ -237,11 +274,25 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
             if not top_docs:
                 return ""
             context_parts = []
-            for i, doc in enumerate(top_docs):
-                content = doc.get('content', 'N/A')
-                score = doc.get('score', 'N/A')
-                context_part = f"--- Tài liệu người dùng {i+1} (Điểm: {score:.2f}) ---\n{content}"
+            for doc in top_docs:
+                content = doc.get('content', '').strip()
+                score = doc.get('score', 0)
+                raw_src = doc.get('source_file') or 'Tài liệu người dùng'
+                source_name = os.path.basename(raw_src) if raw_src else raw_src
+                clean_text = " ".join(content.split())
+                snippet = clean_text[:280] + ("..." if len(clean_text) > 280 else "")
+
+                citations.append({
+                    "index": citation_counter,
+                    "source_file": source_name,
+                    "snippet": snippet,
+                    "score": round(float(score), 3),
+                    "type": "user"
+                })
+
+                context_part = f"--- [Nguồn {citation_counter}: {source_name}] (Điểm: {score:.2f}) ---\n{content}"
                 context_parts.append(context_part)
+                citation_counter += 1
 
             return "\n\n".join(context_parts)
 
@@ -274,21 +325,28 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
         if memory_context:
             full_user_context += f"\n\n--- MEMORY CONTEXT ---{memory_context}"
         
-        return {"user_context": full_user_context}
+        return {
+            "user_context": full_user_context,
+            "citations": citations
+        }
 
     def retrieve_admin_context_node(state: AgentState):
         """Retrieve admin context with basic memory integration."""
         logger.info("--- Running Node: retrieve_admin_context_node ---")
         logger.info(f"Using user_id '{state['user_id']}' as uploader_username for admin document search")
         
-        # Get basic context - fix function call with proper parameters
+        # Get basic context
         admin_context = find_document_from_admin.invoke({"search_query": state['input'], "uploader_username": state['user_id']})
         
+        citations = list(state.get('citations') or [])
+        citation_counter = len(citations) + 1
+
         def build_context_string(
             documents: list[dict],
             score_threshold: float = 0.15,
             top_k: int = 5
         ) -> str:
+            nonlocal citation_counter
             sorted_docs = sorted(documents, key=lambda x: x.get('score', 0), reverse=True)
             filtered_docs = [
                 doc for doc in sorted_docs
@@ -299,11 +357,25 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
             if not top_docs:
                 return ""
             context_parts = []
-            for i, doc in enumerate(top_docs):
-                content = doc.get('content', 'N/A')
-                score = doc.get('score', 'N/A')
-                context_part = f"--- Tài liệu quản trị {i+1} (Điểm: {score:.2f}) ---\n{content}"
+            for doc in top_docs:
+                content = doc.get('content', '').strip()
+                score = doc.get('score', 0)
+                raw_src = doc.get('source_file') or 'Tài liệu quản trị'
+                source_name = os.path.basename(raw_src) if raw_src else raw_src
+                clean_text = " ".join(content.split())
+                snippet = clean_text[:280] + ("..." if len(clean_text) > 280 else "")
+
+                citations.append({
+                    "index": citation_counter,
+                    "source_file": source_name,
+                    "snippet": snippet,
+                    "score": round(float(score), 3),
+                    "type": "admin"
+                })
+
+                context_part = f"--- [Nguồn {citation_counter}: {source_name}] (Điểm: {score:.2f}) ---\n{content}"
                 context_parts.append(context_part)
+                citation_counter += 1
 
             return "\n\n".join(context_parts)
 
@@ -326,7 +398,10 @@ def create_agent_graph(models: Union[ModelRegistry, BaseChatModel], tools):
         # Always remind about user identification
         combined_context += f"\n\n--- SYSTEM REMINDER ---\nUser is already identified with ID: {state['user_id']}. Do not ask for name or identification."
         
-        return {"context": combined_context}
+        return {
+            "context": combined_context,
+            "citations": citations
+        }
 
     
     def agent_node(state: AgentState):

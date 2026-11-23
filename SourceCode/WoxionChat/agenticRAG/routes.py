@@ -23,6 +23,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     user_id: Optional[str] = None
+    selected_document: Optional[str] = None
 
 class SearchRequest(BaseModel):
     user_id: Optional[str] = None
@@ -109,6 +110,8 @@ def chat(body: ChatRequest, request: Request):
             "short_term_memory": None,
             "user_preferences": None,
             "conversation_summaries": None,
+            "citations": [],
+            "selected_document": body.selected_document,
         }
 
         config = {"recursion_limit": 30}
@@ -152,6 +155,19 @@ def chat(body: ChatRequest, request: Request):
 
         total_time = time.time() - start_time
 
+        citations = []
+        sources = []
+        context_str = ""
+        if final_state:
+            citations = final_state.get("citations") or []
+            context_str = final_state.get("context") or ""
+            seen_sources = set()
+            for c in citations:
+                src = c.get("source_file")
+                if src and src not in seen_sources:
+                    seen_sources.add(src)
+                    sources.append(src)
+
         memory_stats = {}
         if final_state and final_state.get("memory_manager"):
             try:
@@ -167,6 +183,9 @@ def chat(body: ChatRequest, request: Request):
             "request_id": request_id,
             "user_id": user_id,
             "response": response_content,
+            "citations": citations,
+            "sources": sources,
+            "context": context_str,
             "success": final_ai_message is not None,
             "memory_stats": memory_stats,
             "timing": {

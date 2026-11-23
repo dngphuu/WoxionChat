@@ -148,19 +148,22 @@ async function sendMessage() {
             const result = await response.json();
             const botAnswer = result.response || result.message || result.answer || '✅ Đã nhận phản hồi từ WoxionChat.';
             const sources = result.sources || [];
+            const citations = result.citations || [];
             const context = result.context || null;
 
             // Render bot message with typewriter effect
             addBotMessageWithTypewriter(botAnswer, {
                 instant: false,
                 sources: sources,
-                context: context
+                context: context,
+                citations: citations
             });
 
             // Save bot message to thread
             ChatThreads.addMessage('bot', botAnswer, {
                 sources: sources,
-                context: context
+                context: context,
+                citations: citations
             });
 
         } else {

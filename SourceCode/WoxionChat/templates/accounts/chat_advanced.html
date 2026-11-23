@@ -58,6 +58,10 @@
         </div>
 
         <div class="chat-input-container">
+            <div id="activeDocBanner" class="active-doc-banner" style="display: none;">
+                <span class="doc-name"><i class="fas fa-file-alt"></i> Đang hỏi về: <strong id="activeDocName"></strong></span>
+                <button type="button" class="clear-btn" onclick="clearSelectedDocument()" title="Bỏ chọn tài liệu"><i class="fas fa-times"></i></button>
+            </div>
             <div class="input-wrapper">
                 <input 
                     type="text" 

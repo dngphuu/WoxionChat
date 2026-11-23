@@ -250,10 +250,10 @@ def process_ocr(request, file_id):
         
         # Start OCR processing
         try:
-            mistral_api_key = getattr(settings, 'MISTRAL_API_KEY', None)
-            if mistral_api_key:
-                logger.info(f"Starting Mistral OCR for file: {uploaded_file.title}")
-                ocr_result = OCRProcessingService.Processing_with_mistral(uploaded_file, mistral_api_key)
+            gemini_api_key = getattr(settings, 'GEMINI_API_KEY', None) or getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'MISTRAL_API_KEY', None)
+            if gemini_api_key:
+                logger.info(f"Starting Gemini OCR for file: {uploaded_file.title}")
+                ocr_result = OCRProcessingService.Processing_with_gemini(uploaded_file, gemini_api_key)
                 messages.success(request, f'OCR processing completed for "{uploaded_file.title}"!')
             else:
                 # Create basic OCR task without API
@@ -433,9 +433,9 @@ def api_process_ocr(request, file_id):
         uploaded_file = UploadedFile.objects.get(id=file_id, uploader_id=str(user.id))
         
         # Start OCR processing
-        mistral_api_key = getattr(settings, 'MISTRAL_API_KEY', None)
-        if mistral_api_key:
-            ocr_result = OCRProcessingService.Processing_with_mistral(uploaded_file, mistral_api_key)
+        gemini_api_key = getattr(settings, 'GEMINI_API_KEY', None) or getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'MISTRAL_API_KEY', None)
+        if gemini_api_key:
+            ocr_result = OCRProcessingService.Processing_with_gemini(uploaded_file, gemini_api_key)
         else:
             ocr_result = OCRProcessingService.create_ocr_task(uploaded_file)
         

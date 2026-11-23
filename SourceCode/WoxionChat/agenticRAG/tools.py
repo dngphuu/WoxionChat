@@ -127,12 +127,12 @@ def summarize_conversation(messages: List[str], user_preferences: Dict[str, Any]
         return "Cuộc hội thoại về các chủ đề công nghệ" 
 
 @tool
-def find_documents_parallel(search_query: str, uploader_username: str) -> Dict[str, List[dict]]:
+def find_documents_parallel(search_query: str, uploader_username: str, selected_document: str = None) -> Dict[str, List[dict]]:
     """
     Tìm kiếm tài liệu từ cả user và admin song song để tối ưu tốc độ với shared embedding
     """
     safe_log_info("--- Running Tool: find_documents_parallel ---")
-    safe_log_info(f"Searching documents in parallel for query: '{search_query}' and uploader: '{uploader_username}'")
+    safe_log_info(f"Searching documents in parallel for query: '{search_query}' and uploader: '{uploader_username}', selected_document: '{selected_document}'")
     
     # Generate embedding once for both searches
     start_time = time.time()
@@ -150,7 +150,9 @@ def find_documents_parallel(search_query: str, uploader_username: str) -> Dict[s
     def get_user_documents():
         """Retrieve user documents using pre-generated embedding."""
         try:
-            documents = find_similar_documents_hybrid_search(query_vector, search_query, uploader_username)
+            documents = find_similar_documents_hybrid_search(
+                query_vector, search_query, uploader_username, selected_document=selected_document
+            )
             safe_log_info(f"Found {len(documents)} user documents")
             return documents
         except Exception as e:
@@ -205,12 +207,12 @@ def find_documents_parallel(search_query: str, uploader_username: str) -> Dict[s
         }
 
 @tool
-def find_document_from_user(search_query: str, uploader_username: str) -> list[dict]:
+def find_document_from_user(search_query: str, uploader_username: str, selected_document: str = None) -> list[dict]:
     """
     Tìm kiếm tài liệu từ người dùng
     """
     safe_log_info("--- Running Tool: find_document_from_user ---")
-    safe_log_info(f"Searching user documents for query: '{search_query}' and uploader: '{uploader_username}'")
+    safe_log_info(f"Searching user documents for query: '{search_query}' and uploader: '{uploader_username}', selected_document: '{selected_document}'")
     
     try:
         query_vector = get_embedding(search_query)
@@ -218,7 +220,9 @@ def find_document_from_user(search_query: str, uploader_username: str) -> list[d
             logger.error("Failed to generate embedding for search query")
             return []
             
-        documents = find_similar_documents_hybrid_search(query_vector, search_query, uploader_username)
+        documents = find_similar_documents_hybrid_search(
+            query_vector, search_query, uploader_username, selected_document=selected_document
+        )
         safe_log_info(f"Found {len(documents)} user documents")
         
         return documents

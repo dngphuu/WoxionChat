@@ -1880,15 +1880,18 @@
     transform: rotate(180deg);
 }
 
-.citations-body {
+.citations-accordion .citations-body {
     display: none;
     padding: 12px 14px;
     border-top: 1px solid #e2e8f0;
     font-size: 0.82rem;
     background: #fafafa;
-    display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+}
+
+.citations-accordion.open .citations-body {
+    display: flex;
 }
 
 .citation-card {
@@ -1896,6 +1899,7 @@
     border: 1px solid #e2e8f0;
     border-radius: 8px;
     padding: 10px 12px;
+    transition: all 0.25s ease;
 }
 
 .citation-card-header {
@@ -1905,13 +1909,47 @@
     margin-bottom: 6px;
     font-weight: 600;
     color: #0f172a;
+    gap: 8px;
 }
 
 .citation-card-header .doc-name {
     display: flex;
     align-items: center;
     gap: 6px;
+    color: #0f172a;
+    font-size: 0.82rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+}
+
+.citation-card-header .doc-name i {
     color: #10a37f;
+}
+
+.citation-badges-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.citation-type-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.citation-type-badge.user {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.citation-type-badge.admin {
+    background: #fef3c7;
+    color: #92400e;
 }
 
 .citation-score-badge {
@@ -1926,14 +1964,126 @@
 .citation-snippet {
     color: #475569;
     font-size: 0.8rem;
-    line-height: 1.45;
+    line-height: 1.5;
     background: #f8fafc;
     padding: 8px 10px;
     border-radius: 6px;
-    border-left: 2px solid #cbd5e1;
+    border-left: 3px solid #10a37f;
     white-space: pre-wrap;
-    max-height: 150px;
+    max-height: 140px;
     overflow-y: auto;
+}
+
+.citation-footer-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.citation-copy-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.citation-copy-btn:hover {
+    color: #10a37f;
+    background: #f1f5f9;
+}
+
+/* Inline Citation Chip (e.g. [1], [2]) */
+.inline-citation-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #10a37f;
+    background: rgba(16, 163, 127, 0.12);
+    border: 1px solid rgba(16, 163, 127, 0.28);
+    border-radius: 10px;
+    vertical-align: super;
+    margin: 0 2px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.inline-citation-btn:hover {
+    background: #10a37f;
+    color: #ffffff;
+    border-color: #10a37f;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 5px rgba(16, 163, 127, 0.3);
+}
+
+@keyframes citationPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.6);
+        border-color: #10a37f;
+        background-color: #f0fdf4;
+    }
+    40% {
+        box-shadow: 0 0 0 6px rgba(16, 163, 127, 0.25);
+        border-color: #10a37f;
+        background-color: #f0fdf4;
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(16, 163, 127, 0);
+        border-color: #e2e8f0;
+        background-color: #ffffff;
+    }
+}
+
+.citation-card.highlight {
+    animation: citationPulse 1.8s ease-in-out;
+}
+
+/* Active Selected Document Banner in Chat Input Area */
+.active-doc-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 6px 12px;
+    margin-bottom: 8px;
+    font-size: 0.8rem;
+    color: #166534;
+}
+
+.active-doc-banner .doc-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.active-doc-banner .clear-btn {
+    background: transparent;
+    border: none;
+    color: #166534;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+.active-doc-banner .clear-btn:hover {
+    color: #dc2626;
 }
 
 /* Copy Response Text Action Button */

@@ -121,6 +121,7 @@ const ChatThreads = {
             content: content,
             sources: options.sources || null,
             context: options.context || null,
+            citations: options.citations || null,
             timeString: options.timeString || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             timestamp: new Date().toISOString()
         };
@@ -195,7 +196,8 @@ const ChatThreads = {
                     timeString: msg.timeString,
                     instant: true,
                     sources: msg.sources,
-                    context: msg.context
+                    context: msg.context,
+                    citations: msg.citations
                 });
             }
         });

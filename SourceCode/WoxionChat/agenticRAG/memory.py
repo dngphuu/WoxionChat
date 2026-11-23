@@ -19,21 +19,26 @@ class MemoryManager:
     def from_app_config(cls):
         """Create MemoryManager from Settings."""
         settings = get_settings()
+        use_ssl = settings.REDIS_SSL or (
+            isinstance(settings.REDIS_HOST, str) and "upstash.io" in settings.REDIS_HOST.lower()
+        )
         try:
             redis_client = redis.Redis(
                 host=settings.REDIS_HOST,
                 port=settings.REDIS_PORT,
                 password=settings.REDIS_PASSWORD,
+                db=settings.REDIS_DB,
+                ssl=use_ssl,
                 decode_responses=True,
                 socket_connect_timeout=5,
                 socket_timeout=5,
                 retry_on_timeout=True
             )
             redis_client.ping()
-            logger.info("Redis connection established successfully")
+            logger.info(f"Redis connection established successfully (SSL={use_ssl})")
             return cls(redis_client)
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(f"Failed to connect to Redis (SSL={use_ssl}): {e}")
             raise
     
     # Short-term Memory Methods
