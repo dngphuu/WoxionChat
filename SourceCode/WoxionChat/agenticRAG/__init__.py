@@ -68,7 +68,7 @@ async def lifespan(app: FastAPI):
             api_key=settings.PROXY_API_KEY,
             temperature=0.3,
             max_tokens=None,
-            timeout=180,
+            timeout=300,
             max_retries=2,
         )
         logger.info(f"Proxy LLM initialised: {settings.PROXY_MODEL} @ {settings.PROXY_BASE_URL}")
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
             api_key=settings.LOCAL_LLM_API_KEY,
             temperature=0.3,
             max_tokens=None,
-            timeout=120,
+            timeout=300,
             max_retries=2,
         )
         logger.info(f"Local LLM initialised: {settings.LOCAL_LLM_MODEL} @ {settings.LOCAL_LLM_BASE_URL}")

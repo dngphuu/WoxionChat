@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 # Flask service configuration
 import os
 FLASK_SERVICE_URL = os.environ.get("FLASK_SERVICE_URL", "http://localhost:5002")
+FLASK_SERVICE_TIMEOUT = int(os.environ.get("FLASK_SERVICE_TIMEOUT", 300))
 
 @csrf_exempt
 def proxy_to_flask(request, path):
@@ -60,7 +61,7 @@ def proxy_to_flask(request, path):
             data=data,
             files=files,
             params=request.GET.dict(),
-            timeout=125,  # Changed from 30 to 125 seconds (buffer for 2 minutes)
+            timeout=FLASK_SERVICE_TIMEOUT,  # Configurable timeout, default 300s (5 mins for local CPU models)
             stream=True
         )
         
