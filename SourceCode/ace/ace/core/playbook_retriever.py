@@ -111,7 +111,14 @@ class PlaybookRetriever:
         """Lazily load the embedding model on first use."""
         if self._embedding_model is None and RAE_AVAILABLE:
             print(f"[RAE] Loading embedding model: {self.embedding_model_name}")
-            self._embedding_model = SentenceTransformer(self.embedding_model_name)
+            import torch
+            if torch.cuda.is_available():
+                device = "cuda"
+            elif torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+            self._embedding_model = SentenceTransformer(self.embedding_model_name, device=device)
 
     def _encode(self, texts: List[str]) -> np.ndarray:
         """Encode texts to L2-normalized float32 embeddings."""

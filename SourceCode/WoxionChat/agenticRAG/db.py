@@ -92,8 +92,12 @@ def _get_bge_model():
                 try:
                     from sentence_transformers import SentenceTransformer
                     import torch
-                    # Utilize MPS on macOS for faster encoding if available
-                    device = "mps" if torch.backends.mps.is_available() else "cpu"
+                    if torch.cuda.is_available():
+                        device = "cuda"
+                    elif torch.backends.mps.is_available():
+                        device = "mps"
+                    else:
+                        device = "cpu"
                     _bge_model = SentenceTransformer("BAAI/bge-m3", device=device)
                 except ImportError as exc:
                     safe_log_error("Failed to import sentence-transformers for BGE-M3")

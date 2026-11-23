@@ -31,8 +31,12 @@ def _get_bge_model() -> Any:
                         "BGE-M3 yêu cầu cài đặt package 'sentence-transformers'."
                     ) from exc
                 import torch
-                # Utilize MPS on macOS for faster encoding if available
-                device = "mps" if torch.backends.mps.is_available() else "cpu"
+                if torch.cuda.is_available():
+                    device = "cuda"
+                elif torch.backends.mps.is_available():
+                    device = "mps"
+                else:
+                    device = "cpu"
                 _bge_model = SentenceTransformer(EMBEDDING_MODEL, device=device)
     return _bge_model
 
