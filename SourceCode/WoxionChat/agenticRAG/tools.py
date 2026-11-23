@@ -1,7 +1,7 @@
 import os
 import logging
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from langchain.agents import tool
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from .db import (
@@ -88,7 +88,7 @@ def safe_log_error(message: str, exc_info=None):
 
 
 @tool
-def summarize_conversation(messages: List[str], user_preferences: Dict[str, Any] = None) -> str:
+def summarize_conversation(messages: List[str], user_preferences: Optional[Dict[str, Any]] = None) -> str:
     """
     Tóm tắt cuộc hội thoại sử dụng Gemini API.
     
@@ -127,7 +127,7 @@ def summarize_conversation(messages: List[str], user_preferences: Dict[str, Any]
         return "Cuộc hội thoại về các chủ đề công nghệ" 
 
 @tool
-def find_documents_parallel(search_query: str, uploader_username: str, selected_document: str = None) -> Dict[str, List[dict]]:
+def find_documents_parallel(search_query: str, uploader_username: str, selected_document: Optional[str] = None) -> Dict[str, List[dict]]:
     """
     Tìm kiếm tài liệu từ cả user và admin song song để tối ưu tốc độ với shared embedding
     """
@@ -207,7 +207,7 @@ def find_documents_parallel(search_query: str, uploader_username: str, selected_
         }
 
 @tool
-def find_document_from_user(search_query: str, uploader_username: str, selected_document: str = None) -> list[dict]:
+def find_document_from_user(search_query: str, uploader_username: str, selected_document: Optional[str] = None) -> list[dict]:
     """
     Tìm kiếm tài liệu từ người dùng
     """

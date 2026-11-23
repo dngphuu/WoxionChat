@@ -262,7 +262,7 @@ def find_similar_documents_hybrid_search(
     query_vector: list[float],
     search_query: str,
     uploader_username: str,
-    selected_document: str = None,
+    selected_document: str | None = None,
     limit: int = 10,
     candidates: int = 30,
     vector_search_index: str = "vector_search_on_users",
